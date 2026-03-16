@@ -8,7 +8,7 @@ BASE_DIR = os.path.dirname(__file__)
 PROJECT_DIR = os.path.dirname(BASE_DIR)
 
 # Training
-EPISODES = 20000
+EPISODES = 2000
 MAX_STEPS = 200
 
 # Flat Q-learning
