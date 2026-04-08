@@ -151,9 +151,41 @@ python hrl_taxi\src\taxi_ui_2d.py options
 
 # Visualization
 python hrl_taxi\src\plot_results.py
+python hrl_taxi\src\demo_episode_comparison.py
 
 # Project Info
 python hrl_taxi\src\project_summary_gui.py
+```
+
+## Demonstration Mode (1 vs 10 vs 100 vs 1000 Episodes)
+
+For presentation/demo use, run:
+
+```bash
+python hrl_taxi\src\demo_episode_comparison.py
+```
+
+This runs both Flat Q-learning and Options HRL with episode budgets:
+- 1
+- 10
+- 100
+- 1000
+
+Then it exports:
+- `hrl_taxi/reports/figures/demo_episode_comparison/episode_budget_metrics.csv`
+- `hrl_taxi/reports/figures/demo_episode_comparison/episode_budget_comparison.png`
+- Rollout GIFs for each budget and agent (5x5 Taxi-v3)
+
+You can also run this directly from the full pipeline:
+
+```bash
+python main.py --demo-comparison
+```
+
+Useful CLI options:
+
+```bash
+python hrl_taxi\src\demo_episode_comparison.py --budgets 1 10 100 1000 --eval-episodes 200 --gif-fps 2
 ```
 
 ## Output Files

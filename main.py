@@ -19,6 +19,11 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description="HRL Taxi-v3 Pipeline")
     parser.add_argument("--grid", type=int, default=5, help="Grid size for Taxi environment (default: 5)")
+    parser.add_argument(
+        "--demo-comparison",
+        action="store_true",
+        help="Run episode-budget demo comparison (1, 10, 100, 1000) with metrics and GIFs.",
+    )
     args = parser.parse_args()
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -75,6 +80,13 @@ def main():
     if not run_command([python_exe, "plot_results.py"], cwd=hrl_src):
         print("Plotting failed.")
         return
+
+    # Optional: Episode-budget demo exports
+    if args.demo_comparison:
+        print("\n[6/6] Running Episode-Budget Demo Comparison...")
+        if not run_command([python_exe, "demo_episode_comparison.py"], cwd=hrl_src):
+            print("Demo comparison failed.")
+            return
 
     print("\n" + "="*60)
     print("Pipeline completed! All results displayed.")
