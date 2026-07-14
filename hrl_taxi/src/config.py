@@ -8,8 +8,9 @@ BASE_DIR = os.path.dirname(__file__)
 PROJECT_DIR = os.path.dirname(BASE_DIR)
 
 # Training
-EPISODES = 2000
+EPISODES = 3000
 MAX_STEPS = 200
+STUCK_PATIENCE = 25
 
 # Flat Q-learning
 Q_ALPHA = 0.1
@@ -21,7 +22,9 @@ N_OPTIONS = 4
 OC_ALPHA = 0.1
 OC_GAMMA = 0.99
 OC_EPSILON = 0.1
-OC_BETA = 0.2
+OC_EPSILON_MIN = 0.02
+OC_EPSILON_DECAY = 0.995
+OC_BETA = 0.05
 
 # Logging
 LOG_DIR = os.path.join(PROJECT_DIR, "logs")

@@ -1,6 +1,7 @@
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 
 def run_command(cmd, cwd=None):
@@ -13,6 +14,83 @@ def run_command(cmd, cwd=None):
         print(f"Error: Command failed with exit code {result.returncode}")
         return False
     return True
+
+
+def open_file_default(path):
+    """Open a file with the system default application."""
+    try:
+        if os.name == "nt":
+            os.startfile(path)
+        elif sys.platform == "darwin":
+            subprocess.run(["open", path], check=False)
+        else:
+            subprocess.run(["xdg-open", path], check=False)
+        return True
+    except Exception as exc:
+        print(f"Warning: could not open {path}: {exc}")
+        return False
+
+
+def open_demo_gifs(base_dir):
+    """Open generated comparison GIFs in a side-by-side dashboard."""
+    demo_dir = Path(base_dir) / "hrl_taxi" / "reports" / "figures" / "demo_episode_comparison"
+    budgets = (1, 100, 3000)
+
+    rows = []
+    for budget in budgets:
+        flat_path = demo_dir / f"flat_budget_{budget}.gif"
+        options_path = demo_dir / f"options_budget_{budget}.gif"
+        if flat_path.exists() and options_path.exists():
+            rows.append((budget, flat_path.as_uri(), options_path.as_uri()))
+
+    if not rows:
+        print("No demo GIFs found to open. Run demo comparison first to generate them.")
+        return
+
+    dashboard_path = demo_dir / "gif_dashboard.html"
+    html_rows = []
+    for budget, flat_uri, options_uri in rows:
+        html_rows.append(
+            f"""
+            <div class=\"card\">
+                <div class=\"title\">Flat - Budget {budget}</div>
+                <img src=\"{flat_uri}\" alt=\"Flat budget {budget}\" />
+            </div>
+            <div class=\"card\">
+                <div class=\"title\">Options - Budget {budget}</div>
+                <img src=\"{options_uri}\" alt=\"Options budget {budget}\" />
+            </div>
+            """
+        )
+
+    html = f"""<!doctype html>
+<html>
+<head>
+    <meta charset=\"utf-8\" />
+    <title>Flat vs Options GIF Comparison</title>
+    <style>
+        body {{ font-family: Segoe UI, Arial, sans-serif; margin: 16px; background: #f6f8fb; }}
+        h1 {{ margin: 0 0 6px 0; font-size: 22px; }}
+        p {{ margin: 0 0 14px 0; color: #444; }}
+        .grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }}
+        .card {{ background: #fff; border: 1px solid #d8dee9; border-radius: 10px; padding: 10px; }}
+        .title {{ font-weight: 600; margin-bottom: 8px; }}
+        img {{ width: 100%; height: auto; border-radius: 6px; display: block; }}
+    </style>
+</head>
+<body>
+    <h1>Trajectory Comparison Dashboard</h1>
+    <p>Flat on left column, Options on right column (budgets: 1, 100, 3000).</p>
+    <div class=\"grid\">
+        {''.join(html_rows)}
+    </div>
+</body>
+</html>
+"""
+
+    dashboard_path.write_text(html, encoding="utf-8")
+    print(f"\nOpening side-by-side GIF dashboard: {dashboard_path}")
+    open_file_default(str(dashboard_path))
 
 
 def main():
@@ -87,6 +165,9 @@ def main():
         if not run_command([python_exe, "demo_episode_comparison.py"], cwd=hrl_src):
             print("Demo comparison failed.")
             return
+
+    # Always open available GIFs at end for presentation convenience.
+    open_demo_gifs(base_dir)
 
     print("\n" + "="*60)
     print("Pipeline completed! All results displayed.")

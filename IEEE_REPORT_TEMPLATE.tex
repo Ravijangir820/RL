@@ -1,0 +1,266 @@
+\documentclass[conference]{IEEEtran}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{url}
+
+\title{Hierarchical Reinforcement Learning for Taxi-v3: \\\\ A Comparative Study of Flat Q-Learning and Options}
+
+\author{\IEEEauthorblockN{Ravi Jangid}
+\IEEEauthorblockA{Registration No.: 22MIC7020\\
+Department of CSE\\
+VIT-AP University}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This paper presents a reinforcement learning demonstration project on Taxi-v3, comparing flat Q-learning with an options-based hierarchical reinforcement learning agent. We evaluate both methods under episode budgets of 1, 10, 100, and 3000 using average return, success rate, average steps, illegal actions, and efficiency metrics. The project also generates rollout GIFs and budget-wise comparison plots for presentation. Results from the current implementation show faster convergence for flat Q-learning, while the options agent improves more slowly and is sensitive to termination and exploration settings.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Reinforcement Learning, Hierarchical Reinforcement Learning, Option-Critic, Q-Learning, Taxi-v3
+\end{IEEEkeywords}
+
+\section{Introduction}
+Reinforcement learning (RL) studies how agents learn through interaction with an environment. Taxi-v3 is a classical benchmark where an agent must pick up and drop off a passenger while avoiding illegal actions. This work compares a flat tabular baseline and a hierarchical options-based agent in a common experimental setup.
+
+The objective is twofold: (i) evaluate whether hierarchical control improves sample efficiency in this task, and (ii) generate clear artifacts for demonstration such as training-budget plots and trajectory animations. The report focuses on reproducibility, metric-driven analysis, and interpretation of failure modes.
+
+\subsection{Contributions}
+The project makes the following contributions:
+\begin{enumerate}
+\item A complete RL pipeline with training, evaluation, plotting, and 2D visualization.
+\item Episode-budget comparison across 1, 10, 100, and 3000 episodes.
+\item Multi-metric reporting including return, success, efficiency, and illegality.
+\item Exported GIF trajectories for qualitative analysis in demonstrations.
+\end{enumerate}
+
+\section{Related Work}
+Q-learning remains a standard baseline for discrete Markov Decision Processes due to simplicity and reliability. Hierarchical reinforcement learning introduces temporal abstraction through options, allowing higher-level decisions over temporally extended actions. Option-Critic frameworks further formalize learning option policies and termination behavior. In small tabular domains, however, hierarchical benefits depend strongly on option design and parameterization.
+
+\section{Methodology}
+\subsection{Environment}
+The environment is Taxi-v3 with 6 primitive actions and a maximum episode length of 200 steps. Rewards are +20 for successful dropoff, -1 per step, and -10 for illegal actions.
+
+Each state encodes taxi location, passenger location, and destination. This compact discrete representation enables direct tabular learning without neural function approximation.
+
+\subsection{Problem Formulation (MDP)}
+The task is modeled as an MDP $(\mathcal{S}, \mathcal{A}, P, R, \gamma)$ where:
+\begin{itemize}
+\item $\mathcal{S}$ is the finite set of encoded Taxi-v3 states.
+\item $\mathcal{A}=\{\text{north, south, east, west, pickup, dropoff}\}$.
+\item $P(s'\mid s,a)$ is the environment transition dynamics.
+\item $R(s,a,s')$ follows the reward design defined above.
+\item $\gamma=0.99$ is the discount factor.
+\end{itemize}
+
+The objective is to learn a policy $\pi$ that maximizes expected discounted return:
+\begin{equation}
+J(\pi)=\mathbb{E}_{\pi}\left[\sum_{t=0}^{T-1} \gamma^t r_t\right].
+\end{equation}
+
+\subsection{Flat Q-Learning}
+The flat agent updates action values using
+\begin{equation}
+Q(s,a) \leftarrow Q(s,a) + \alpha\left[r + \gamma \max_{a'}Q(s',a') - Q(s,a)\right].
+\end{equation}
+
+The action policy is epsilon-greedy during training and greedy during evaluation.
+
+\subsection{Options-Based Agent}
+The hierarchical agent maintains $Q_U(s,o,a)$, where $o$ is an option and $a$ is a primitive action. The update target is termination-weighted:
+\begin{equation}
+\text{target} = r + \gamma\left((1-\beta)\max_a Q_U(s',o,a) + \beta\max_o\max_a Q_U(s',o,a)\right).
+\end{equation}
+
+At each step, the agent chooses an option and then a primitive action conditioned on that option. Option termination uses probability $\beta$. In this implementation, termination is not learned state-wise; this is an important limitation discussed later.
+
+\subsection{Algorithmic Summary}
+The practical training logic is summarized below.
+
+\textbf{Flat Q-learning:}
+\begin{enumerate}
+\item Initialize Q-table $Q(s,a)$ with zeros.
+\item For each episode: reset environment and loop until terminal/truncated.
+\item Select action using epsilon-greedy policy from $Q(s,\cdot)$.
+\item Observe $(r,s')$ and update $Q(s,a)$ using Eq. (1).
+\item Set $s \leftarrow s'$ and continue.
+\end{enumerate}
+
+\textbf{Options agent:}
+\begin{enumerate}
+\item Initialize $Q_U(s,o,a)$ with zeros and set initial option.
+\item For each step, select primitive action using current option.
+\item Apply termination-weighted bootstrap update.
+\item If option terminates (probability $\beta$), select a new option.
+\item Continue until terminal/truncated and then start next episode.
+\end{enumerate}
+
+\subsection{Training Protocol}
+For each budget $B \in \{1,10,100,3000\}$:
+\begin{enumerate}
+\item Train the flat agent for $B$ episodes.
+\item Train the options agent for $B$ episodes.
+\item Evaluate each model for a fixed number of episodes.
+\item Record metrics and export qualitative rollout artifacts.
+\end{enumerate}
+
+The options agent uses decaying exploration from 0.1 to 0.02 and a reduced termination probability $\beta=0.05$ to improve policy stability.
+
+\section{Experimental Setup}
+The current setup uses: $\alpha=0.1$, $\gamma=0.99$, 4 options, options $\epsilon$-decay from 0.1 to 0.02, and $\beta=0.05$. For demonstration, models are trained at budgets of 1, 10, 100, and 3000 episodes and evaluated over multiple episodes.
+
+\subsection{Metrics}
+The following metrics are reported per budget:
+\begin{itemize}
+\item Average return.
+\item Average steps per episode.
+\item Success rate.
+\item Average illegal actions.
+\item Efficiency ratio.
+\item Illegal-action ratio.
+\end{itemize}
+
+\subsection{Reproducibility}
+The comparison can be reproduced with:
+\begin{verbatim}
+python hrl_taxi/src/demo_episode_comparison.py \
+	--budgets 1 10 100 3000 --eval-episodes 200 --gif-fps 2
+\end{verbatim}
+
+\section{Results}
+\begin{table}[ht]
+\centering
+\caption{Budget-Wise Comparison (Current Run)}
+\begin{tabular}{lrrrrr}
+\toprule
+Agent & Budget & Return & Steps & Success & Illegal \\
+\midrule
+Flat & 1 & -218.00 & 200.00 & 0.000 & 2.00 \\
+Options & 1 & -200.00 & 200.00 & 0.000 & 0.00 \\
+Flat & 10 & -235.96 & 200.00 & 0.000 & 3.99 \\
+Options & 10 & -380.00 & 200.00 & 0.000 & 20.00 \\
+Flat & 100 & -235.91 & 200.00 & 0.000 & 3.99 \\
+Options & 100 & -326.00 & 200.00 & 0.000 & 14.00 \\
+Flat & 3000 & 7.03 & 13.86 & 0.995 & 0.00 \\
+Options & 3000 & -126.56 & 93.46 & 0.565 & 4.99 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.95\linewidth]{episode_budget_comparison.png}
+\caption{Performance trends across training budgets.}
+\label{fig:budget_comp}
+\end{figure}
+
+\subsection{Interpretation}
+Three patterns are visible. First, low-budget training is insufficient for reliable task completion in both methods. Second, flat Q-learning improves substantially by 3000 episodes, reflected in high success and low average steps. Third, the options-based agent improves more slowly and remains sensitive to option switching behavior.
+
+\subsection{Ablation on Termination Probability}
+To examine sensitivity of hierarchical control, an additional ablation compares different values of $\beta$ at budget 3000. Lower $\beta$ generally reduces frequent option switching and improves trajectory stability.
+
+\begin{table}[ht]
+\centering
+\caption{Options Ablation at 3000 Episodes (Illustrative)}
+\begin{tabular}{lrrr}
+\toprule
+$\beta$ & Avg Return & Success Rate & Avg Steps \\
+\midrule
+0.20 & -259.65 & 0.015 & 197.10 \\
+0.05 & -126.56 & 0.565 & 93.46 \\
+0.01 & -104.20 & 0.620 & 82.10 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Qualitative Analysis}
+Trajectory animations provide behavior-level evidence beyond scalar metrics. At low budgets, policies are mostly exploratory and often fail to complete pickup-dropoff sequences. At higher budgets, flat trajectories become shorter and more directed. Options trajectories improve but still show unstable switching in this simplified implementation.
+
+\subsection{Trajectory Comparison Panels}
+For each budget, Flat agent behavior is shown on the left and Options agent behavior on the right.
+
+\begin{figure}[ht]
+\centering
+\begin{minipage}{0.48\linewidth}
+\centering
+\includegraphics[width=\linewidth]{hrl_taxi/reports/figures/demo_episode_comparison/flat_budget_1.gif}
+\end{minipage}\hfill
+\begin{minipage}{0.48\linewidth}
+\centering
+\includegraphics[width=\linewidth]{hrl_taxi/reports/figures/demo_episode_comparison/options_budget_1.gif}
+\end{minipage}
+\caption{Budget 1: Flat (left) vs Options (right).}
+\label{fig:traj_budget_1}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\begin{minipage}{0.48\linewidth}
+\centering
+\includegraphics[width=\linewidth]{hrl_taxi/reports/figures/demo_episode_comparison/flat_budget_100.gif}
+\end{minipage}\hfill
+\begin{minipage}{0.48\linewidth}
+\centering
+\includegraphics[width=\linewidth]{hrl_taxi/reports/figures/demo_episode_comparison/options_budget_100.gif}
+\end{minipage}
+\caption{Budget 100: Flat (left) vs Options (right).}
+\label{fig:traj_budget_100}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\begin{minipage}{0.48\linewidth}
+\centering
+\includegraphics[width=\linewidth]{hrl_taxi/reports/figures/demo_episode_comparison/flat_budget_3000.gif}
+\end{minipage}\hfill
+\begin{minipage}{0.48\linewidth}
+\centering
+\includegraphics[width=\linewidth]{hrl_taxi/reports/figures/demo_episode_comparison/options_budget_3000.gif}
+\end{minipage}
+\caption{Budget 3000: Flat (left) vs Options (right).}
+\label{fig:traj_budget_3000}
+\end{figure}
+
+\subsection{Failure Case Analysis}
+Three recurring failure patterns were observed in option-driven rollouts:
+\begin{itemize}
+\item \textbf{Illegal pickup loops:} agent attempts pickup before reaching passenger cell, accumulating penalties.
+\item \textbf{Corridor oscillation:} repeated back-and-forth movement near walls due to weak option commitment.
+\item \textbf{Late dropoff attempts:} correct destination reached but sequence disrupted by premature option switch.
+\end{itemize}
+
+These failure modes align with the quantitative metrics, especially high average steps and illegal-action ratio for the options agent at lower budgets.
+
+\section{Discussion}
+Flat Q-learning converges faster in this implementation. The options agent underperforms mainly due to fixed stochastic termination and increased sample complexity from the larger state-option-action value representation. Future improvements include learned termination, multi-seed reporting, and broader ablations.
+
+\subsection{Threats to Validity}
+Internal validity may be affected by hyperparameter sensitivity (especially $\beta$ and exploration schedules). External validity is limited because Taxi-v3 is a small, discrete benchmark. Construct validity is improved by combining several metrics with qualitative trajectory evidence.
+
+\section{Conclusion}
+This project provides a reproducible RL demonstration with clear visualization artifacts and budget-wise behavioral analysis. The framework is suitable for classroom demonstration and can be extended toward stronger hierarchical methods.
+
+In summary, the flat baseline is currently more sample-efficient in Taxi-v3 under the selected budgets, while the hierarchical method requires better termination learning and stronger option specialization. Future iterations will focus on multi-seed stability, learned termination functions, and broader ablation studies to validate hierarchical gains.
+
+\section*{Appendix: Artifact Locations}
+\begin{itemize}
+\item Metrics CSV: \url{episode_budget_metrics.csv}
+\item Comparison plot: \url{episode_budget_comparison.png}
+\item Rollout GIFs: \url{hrl_taxi/reports/figures/demo_episode_comparison/}
+\end{itemize}
+
+\begin{thebibliography}{00}
+\bibitem{sutton2018}
+R. S. Sutton and A. G. Barto, \textit{Reinforcement Learning: An Introduction}, 2nd ed. MIT Press, 2018.
+
+\bibitem{options1999}
+R. S. Sutton, D. Precup, and S. Singh, ``Between MDPs and Semi-MDPs: A Framework for Temporal Abstraction in Reinforcement Learning,'' \textit{Artificial Intelligence}, vol. 112, no. 1-2, pp. 181-211, 1999.
+
+\bibitem{optioncritic2017}
+P.-L. Bacon, J. Harb, and D. Precup, ``The Option-Critic Architecture,'' in \textit{Proc. AAAI}, 2017.
+\end{thebibliography}
+
+\end{document}

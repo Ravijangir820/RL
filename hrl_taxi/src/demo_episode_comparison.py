@@ -15,12 +15,15 @@ from config import (
     N_OPTIONS,
     OC_ALPHA,
     OC_BETA,
+    OC_EPSILON_DECAY,
+    OC_EPSILON_MIN,
     OC_EPSILON,
     OC_GAMMA,
     Q_ALPHA,
     Q_EPSILON,
     Q_GAMMA,
     SEED,
+    STUCK_PATIENCE,
 )
 from custom_taxi_env import CustomTaxiEnv
 from option_critic import OptionCriticAgent
@@ -29,6 +32,14 @@ from utils import ensure_dir, write_csv
 
 
 OPTIMAL_STEPS = 12
+
+
+def taxi_position(env, state):
+    try:
+        taxi_row, taxi_col, _, _ = env.unwrapped.decode(state)
+        return int(taxi_row), int(taxi_col)
+    except Exception:
+        return int(state), -1
 
 
 def get_env(render_mode=None):
@@ -79,6 +90,7 @@ def train_options(episodes):
     )
 
     for ep in range(episodes):
+        agent.epsilon = max(OC_EPSILON_MIN, agent.epsilon * OC_EPSILON_DECAY)
         state, _ = env.reset(seed=SEED + ep)
         option = agent.select_option(state)
         for _ in range(MAX_STEPS):
@@ -119,7 +131,7 @@ def to_eval_options_agent(train_agent):
         alpha=train_agent.alpha,
         gamma=train_agent.gamma,
         epsilon=0.0,
-        beta=train_agent.beta,
+        beta=0.0,
         seed=SEED,
     )
     eval_agent.q_u = np.array(train_agent.q_u, copy=True)
@@ -133,6 +145,8 @@ def run_eval_episode(agent, mode, env, seed):
     illegal = 0
     success = 0
     option = None
+    stuck_steps = 0
+    prev_pos = taxi_position(env, state)
 
     for _ in range(MAX_STEPS):
         if mode == "flat":
@@ -148,6 +162,16 @@ def run_eval_episode(agent, mode, env, seed):
         state = next_state
         total_reward += reward
         steps += 1
+
+        current_pos = taxi_position(env, state)
+        if current_pos == prev_pos:
+            stuck_steps += 1
+        else:
+            stuck_steps = 0
+        prev_pos = current_pos
+
+        if stuck_steps >= STUCK_PATIENCE:
+            done = True
 
         if reward == -10:
             illegal += 1
@@ -208,6 +232,8 @@ def capture_rollout_gif(agent, mode, out_path, fps=2):
     state, _ = env.reset(seed=SEED + 777)
     frames = [env.render()]
     option = None
+    stuck_steps = 0
+    prev_pos = taxi_position(env, state)
 
     for _ in range(MAX_STEPS):
         if mode == "flat":
@@ -220,11 +246,20 @@ def capture_rollout_gif(agent, mode, out_path, fps=2):
         next_state, _, terminated, truncated, _ = env.step(action)
         state = next_state
 
+        current_pos = taxi_position(env, state)
+        if current_pos == prev_pos:
+            stuck_steps += 1
+        else:
+            stuck_steps = 0
+        prev_pos = current_pos
+
         frame = env.render()
         if frame is not None:
             frames.append(frame)
 
         done = terminated or truncated
+        if stuck_steps >= STUCK_PATIENCE:
+            done = True
         if mode == "options" and not done and agent.should_terminate():
             option = agent.select_option(state)
         if done:
@@ -297,7 +332,7 @@ def main():
         "--budgets",
         type=int,
         nargs="+",
-        default=[1, 10, 100, 1000,2000],
+        default=[1, 10, 100, 1000,3000],
         help="Episode budgets for comparison.",
     )
     parser.add_argument(
@@ -320,7 +355,7 @@ def main():
     if not budgets:
         raise ValueError("At least one positive budget is required.")
 
-    max_default = max(EPISODES, 1000)
+    max_default = max(EPISODES, 10000)
     budgets = [b for b in budgets if b <= max_default]
     if not budgets:
         raise ValueError(f"All budgets exceed configured limit ({max_default}).")

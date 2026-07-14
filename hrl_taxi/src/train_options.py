@@ -10,6 +10,8 @@ from config import (
     N_OPTIONS,
     OC_ALPHA,
     OC_BETA,
+    OC_EPSILON_DECAY,
+    OC_EPSILON_MIN,
     OC_EPSILON,
     OC_GAMMA,
     SEED,
@@ -45,6 +47,7 @@ def train():
     episode_metrics = []
     optimal_steps = 12  # Theoretical optimal for Taxi-v3
     for ep in range(EPISODES):
+        agent.epsilon = max(OC_EPSILON_MIN, agent.epsilon * OC_EPSILON_DECAY)
         state, _ = env.reset(seed=SEED + ep)
         total_reward = 0.0
         steps = 0

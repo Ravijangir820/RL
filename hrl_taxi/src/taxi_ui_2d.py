@@ -4,7 +4,7 @@ import time
 import gymnasium as gym
 import pygame
 
-from config import CKPT_DIR, ENV_ID, GRID_SIZE, MAX_STEPS, OC_BETA
+from config import CKPT_DIR, ENV_ID, GRID_SIZE, MAX_STEPS, OC_BETA, STUCK_PATIENCE
 from custom_taxi_env import CustomTaxiEnv
 from option_critic import OptionCriticAgent
 from q_learning import QLearningAgent
@@ -99,6 +99,14 @@ def load_options_agent(env):
 def decode_state(env, state):
     taxi_row, taxi_col, pass_loc, dest_idx = env.unwrapped.decode(state)
     return taxi_row, taxi_col, pass_loc, dest_idx
+
+
+def get_taxi_position(env, state):
+    try:
+        taxi_row, taxi_col, _, _ = decode_state(env, state)
+        return int(taxi_row), int(taxi_col)
+    except Exception:
+        return int(state), -1
 
 
 def cell_rect(row, col):
@@ -275,6 +283,8 @@ def main():
     step = 0
     reward = 0
     last_action = "-"
+    stuck_steps = 0
+    prev_pos = get_taxi_position(env, state)
 
     auto_delay = 0.5
     last_auto_time = time.time()
@@ -307,6 +317,18 @@ def main():
                 done = terminated or truncated
                 step += 1
                 last_action = ACTIONS[action]
+
+                current_pos = get_taxi_position(env, state)
+                if current_pos == prev_pos:
+                    stuck_steps += 1
+                else:
+                    stuck_steps = 0
+                prev_pos = current_pos
+
+                if stuck_steps >= STUCK_PATIENCE:
+                    done = True
+                    last_action = f"{last_action} | Stuck-stop"
+                    print(f"Stopping episode early: taxi stuck for {STUCK_PATIENCE} steps.")
 
                 if mode == "options" and not done and agent.should_terminate():
                     option = agent.select_option(state)
